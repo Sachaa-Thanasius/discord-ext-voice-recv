@@ -46,4 +46,4 @@ async def on_ready() -> None:
 async def setup_hook() -> None:
     await bot.add_cog(Testing(bot))
 
-bot.run("OTI5OTA5MjU1Njg1OTQ3NDMy.GzR6Zq.0S2CMPavDU8lRkfGw0GSQx6rZQlfkGAJde9Aek")
+bot.run("token")
