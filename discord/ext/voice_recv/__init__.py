@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from .voice_client import *
 from .reader import *
 from .sinks import *

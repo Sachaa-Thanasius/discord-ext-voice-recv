@@ -1,26 +1,21 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 import logging
-
-from typing import TYPE_CHECKING, Final
-
-from .buffer import HeapJitterBuffer as JitterBuffer
-from .rtp import FakePacket
+from typing import TYPE_CHECKING, Any, Callable, Dict, Final, Optional, Tuple
 
 from discord.opus import Decoder
 
-if TYPE_CHECKING:
-    from typing import Optional, Tuple, Dict, Callable, Any
-    from .rtp import RTPPacket, AudioPacket
-    from .sinks import AudioSink
-    from .router import PacketRouter
-    from .voice_client import VoiceRecvClient
-    from .types import MemberOrUser as User
+from .buffer import HeapJitterBuffer as JitterBuffer
+from .rtp import AudioPacket, FakePacket, RTPPacket
+from .types import MemberOrUser as User
 
-    EventCB = Callable[..., Any]
-    EventData = Tuple[str, Tuple[Any, ...], Dict[str, Any]]
+if TYPE_CHECKING:
+    from .router import PacketRouter
+    from .sinks import AudioSink
+    from .voice_client import VoiceRecvClient
+
+EventCB = Callable[..., Any]
+EventData = Tuple[str, Tuple[Any, ...], Dict[str, Any]]
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +70,7 @@ class PacketDecoder:
     def pop_data(self, *, timeout: float = BUFFER_TIMEOUT) -> Optional[VoiceData]:
         packet = self._get_next_packet(timeout)
         if packet is None:
-            return
+            return None
 
         return self._process_packet(packet)
 
@@ -102,7 +97,7 @@ class PacketDecoder:
                 if any(packets[1:]):
                     log.warning("%s packets were lost being flushed in decoder-%s", len(packets) - 1, self.ssrc)
                 return packets[0]
-            return
+            return None
         elif not packet:
             packet = self._make_fakepacket()
 

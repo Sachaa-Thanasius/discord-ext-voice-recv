@@ -1,27 +1,21 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
-import queue
 import logging
+import queue
 import threading
-
 from collections import deque
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
-from .utils import LoopTimer
 from .opus import PacketDecoder
-
-from typing import TYPE_CHECKING
+from .rtp import RTCPPacket, RTPPacket
+from .utils import LoopTimer
 
 if TYPE_CHECKING:
-    from typing import Tuple, Dict, List, Callable, Any, Optional
-    from .rtp import RTPPacket, RTCPPacket
-    from .sinks import AudioSink
-    from .voice_client import VoiceRecvClient
     from .reader import AudioReader
+    from .sinks import AudioSink
 
-    EventCB = Callable[..., Any]
-    EventData = Tuple[str, Tuple[Any, ...], Dict[str, Any]]
+EventCB = Callable[..., Any]
+EventData = Tuple[str, Tuple[Any, ...], Dict[str, Any]]
 
 log = logging.getLogger(__name__)
 
@@ -178,7 +172,7 @@ class SinkEventRouter(threading.Thread):
             else:
                 self._event_listeners[name] = [func]
 
-    def _unregister_listeners(self, sink: AudioSink):
+    def _unregister_listeners(self, sink: AudioSink) -> None:
         for name, method_name in sink.__sink_listeners__:
             func = getattr(sink, method_name)
 
@@ -214,7 +208,5 @@ class SinkEventRouter(threading.Thread):
             except queue.Empty:
                 continue
             else:
-                with self._lock:
-                    # this looks dumb
-                    with self.reader.packet_router._lock:
-                        self._dispatch_to_listeners(event, *args, **kwargs)
+                with self._lock, self.reader.packet_router._lock:  # this looks dumb
+                    self._dispatch_to_listeners(event, *args, **kwargs)

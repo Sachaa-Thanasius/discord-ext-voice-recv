@@ -1,24 +1,20 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
-import time
 import asyncio
 import logging
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import discord
-from discord.voice_state import VoiceConnectionState
 from discord.utils import MISSING
-
-from typing import TYPE_CHECKING
+from discord.voice_state import VoiceConnectionState
 
 from .gateway import hook
 from .reader import AudioReader
 from .sinks import AudioSink
 
 if TYPE_CHECKING:
-    from typing import Optional, Dict, Any, Union
     from discord.ext.commands._types import CoroFunc
+
     from .reader import AfterCB
 
 from pprint import pformat
@@ -37,7 +33,7 @@ class VoiceRecvClient(discord.VoiceClient):
         self._reader: AudioReader = MISSING
         self._ssrc_to_id: Dict[int, int] = {}
         self._id_to_ssrc: Dict[int, int] = {}
-        self._event_listeners: Dict[str, list] = {}
+        self._event_listeners: Dict[str, List[CoroFunc]] = {}
 
     def create_connection_state(self) -> VoiceConnectionState:
         return VoiceConnectionState(self, hook=hook)
@@ -88,7 +84,7 @@ class VoiceRecvClient(discord.VoiceClient):
         except Exception:
             log.exception("Error calling %s", event_name)
 
-    def _schedule_event(self, coro: CoroFunc, event_name: str, *args: Any, **kwargs: Any) -> asyncio.Task:
+    def _schedule_event(self, coro: CoroFunc, event_name: str, *args: Any, **kwargs: Any) -> asyncio.Task[Any]:
         wrapped = self._run_event(coro, event_name, *args, **kwargs)
         return self.client.loop.create_task(wrapped, name=f"ext.voice_recv: {event_name}")
 
@@ -139,7 +135,7 @@ class VoiceRecvClient(discord.VoiceClient):
             raise discord.ClientException('Not connected to voice.')
 
         if not isinstance(sink, AudioSink):
-            raise TypeError('sink must be an AudioSink not {0.__class__.__name__}'.format(sink))
+            raise TypeError(f'sink must be an AudioSink not {sink.__class__.__name__}')
 
         if self.is_listening():
             raise discord.ClientException('Already receiving audio.')
@@ -175,7 +171,7 @@ class VoiceRecvClient(discord.VoiceClient):
     @sink.setter
     def sink(self, sink: AudioSink) -> None:
         if not isinstance(sink, AudioSink):
-            raise TypeError('expected AudioSink not {0.__class__.__name__}.'.format(sink))
+            raise TypeError(f'expected AudioSink not {sink.__class__.__name__}.')
 
         if not self._reader:
             raise ValueError('Not receiving anything.')
@@ -187,7 +183,9 @@ class VoiceRecvClient(discord.VoiceClient):
 
         ssrc = self._get_ssrc_from_id(member.id)
         if ssrc is None:
-            return
+            return None
 
         if self._reader:
             return self._reader.speaking_timer.get_speaking(ssrc)
+        
+        return None

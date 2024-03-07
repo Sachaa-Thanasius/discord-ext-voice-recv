@@ -1,15 +1,10 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 import heapq
 import threading
+from typing import List, Literal, Optional, overload
 
-from typing import TYPE_CHECKING, overload
-
-if TYPE_CHECKING:
-    from typing import Literal, Optional, List
-    from .rtp import RTPPacket
+from .rtp import RTPPacket
 
 __all__ = [
     'HeapJitterBuffer',
@@ -118,14 +113,14 @@ class HeapJitterBuffer:
         return True
 
     @overload
-    def pop(self, *, timeout: float = 1.0) -> Optional[RTPPacket]:
+    def pop(self, *, timeout: Literal[0]) -> None:
         ...
 
     @overload
-    def pop(self, *, timeout: Literal[0]) -> Optional[RTPPacket]:
+    def pop(self, *, timeout: float = 1.0) -> Optional[RTPPacket]:
         ...
 
-    def pop(self, *, timeout=1.0):
+    def pop(self, *, timeout: float = 1.0) -> Optional[RTPPacket]:
         """
         If timeout is a positive number, wait as long as timeout for a packet
         to be ready and return that packet, otherwise return None.
@@ -170,6 +165,7 @@ class HeapJitterBuffer:
 
         if packet and self._get_seq(packet) == self._last_tx + 1:
             return packet
+        return None
 
     def gap(self) -> int:
         """

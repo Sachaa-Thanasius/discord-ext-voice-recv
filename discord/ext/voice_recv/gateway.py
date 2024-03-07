@@ -1,21 +1,15 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any, Dict, cast
 
 from discord.enums import SpeakingState
+from discord.gateway import DiscordVoiceWebSocket
 
-from .video import VoiceVideoStreams
-
-from typing import TYPE_CHECKING, cast
+from .video import VoiceVideoPayload, VoiceVideoStreams
 
 if TYPE_CHECKING:
-    from typing import Dict, Any
-
-    from discord.gateway import DiscordVoiceWebSocket
     from .voice_client import VoiceRecvClient
-    from .video import VoiceVideoPayload
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +37,7 @@ PLATFORM                  = 20 # (unpopulated)
 # fmt: on
 
 
-async def hook(self: DiscordVoiceWebSocket, msg: Dict[str, Any]):
+async def hook(self: DiscordVoiceWebSocket, msg: Dict[str, Any]) -> None:
     op: int = msg['op']
     data: Dict[str, Any] = msg.get('d', {})
     vc: VoiceRecvClient = self._connection.voice_client  # type: ignore
@@ -82,7 +76,7 @@ async def hook(self: DiscordVoiceWebSocket, msg: Dict[str, Any]):
         uid = int(data['user_id'])
         vc._add_ssrc(uid, data['audio_ssrc'])
         member = vc.guild.get_member(uid)
-        streams = VoiceVideoStreams(data=cast('VoiceVideoPayload', data), vc=vc)
+        streams = VoiceVideoStreams(data=cast(VoiceVideoPayload, data), vc=vc)
         vc.dispatch("voice_member_video", member, streams)
 
     elif op == self.CLIENT_DISCONNECT:

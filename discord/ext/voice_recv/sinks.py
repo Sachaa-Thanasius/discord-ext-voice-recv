@@ -1,40 +1,48 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
-import io
 import abc
+import audioop
+import inspect
+import logging
+import shlex
+import subprocess
+import threading
 import time
 import wave
-import shlex
-import inspect
-import audioop
-import logging
-import threading
-import subprocess
-
-from .opus import VoiceData
-from .silence import SilenceGenerator
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 
 import discord
-
-from discord.utils import MISSING, SequenceProxy
 from discord.opus import Decoder as OpusDecoder
+from discord.utils import MISSING, SequenceProxy
 
-from typing import TYPE_CHECKING, overload
+from .opus import VoiceData
+from .rtp import RTCPPacket
+from .silence import SilenceGenerator
+from .types import MemberOrUser as User
 
 if TYPE_CHECKING:
-    from typing import Callable, Optional, Any, IO, Sequence, Tuple, Generator, Union, Dict, List
-
-    from .rtp import AudioPacket, RTCPPacket
     from .voice_client import VoiceRecvClient
-    from .opus import VoiceData
-    from .types import MemberOrUser as User
 
-    BasicSinkWriteCB = Callable[[Optional[User], VoiceData], Any]
-    BasicSinkWriteRTCPCB = Callable[[RTCPPacket], Any]
-    ConditionalFilterFn = Callable[[Optional[User], VoiceData], bool]
-    FFmpegErrorCB = Callable[['FFmpegSink', Exception, Optional[VoiceData]], Any]
+FuncT = TypeVar("FuncT", bound=Callable[..., Any])
+BasicSinkWriteCB = Callable[[Optional[User], VoiceData], Any]
+BasicSinkWriteRTCPCB = Callable[[RTCPPacket], Any]
+ConditionalFilterFn = Callable[[Optional[User], VoiceData], bool]
+FFmpegErrorCB = Callable[['FFmpegSink', Exception, Optional[VoiceData]], Any]
 
 
 log = logging.getLogger(__name__)
@@ -64,7 +72,7 @@ class VoiceRecvException(discord.DiscordException):
 class SinkMeta(abc.ABCMeta):
     __sink_listeners__: List[Tuple[str, str]]
 
-    def __new__(cls, name: str, bases: Tuple[type, ...], attrs: Dict[str, Any], **kwargs):
+    def __new__(cls, name: str, bases: Tuple[type, ...], attrs: Dict[str, Any], **kwargs: object):
         listeners: Dict[str, Any] = {}
         new_cls = super().__new__(cls, name, bases, attrs, **kwargs)
 
@@ -74,8 +82,7 @@ class SinkMeta(abc.ABCMeta):
                 if elem in listeners:
                     del listeners[elem]
 
-                is_static_method = isinstance(value, staticmethod)
-                if is_static_method:
+                if isinstance(value, staticmethod):
                     value = value.__func__
 
                 if not hasattr(value, '__sink_listener__'):
@@ -83,7 +90,7 @@ class SinkMeta(abc.ABCMeta):
 
                 listeners[elem] = value
 
-        listener_list = []
+        listener_list: List[Tuple[str, str]] = []
         for listener in listeners.values():
             for listener_name in listener.__sink_listener_names__:
                 listener_list.append((listener_name, listener.__name__))
@@ -93,7 +100,7 @@ class SinkMeta(abc.ABCMeta):
 
 
 class SinkABC(metaclass=SinkMeta):
-    __sink_listeners__: List[Tuple[str, str]]
+    __sink_listeners__: ClassVar[List[Tuple[str, str]]]
 
     @property
     @abc.abstractmethod
@@ -128,12 +135,12 @@ class SinkABC(metaclass=SinkMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def write(self, user: Optional[User], data: VoiceData):
+    def write(self, user: Optional[User], data: VoiceData) -> None:
         """Callback for when the sink receives data"""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def cleanup(self):
+    def cleanup(self) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -206,13 +213,13 @@ class AudioSink(SinkABC):
             yield from child.walk_children()
 
     @classmethod
-    def listener(cls, name: str = MISSING):
+    def listener(cls, name: str = MISSING) -> Callable[[FuncT], FuncT]:
         """Marks a function as an event listener."""
 
         if name is not MISSING and not isinstance(name, str):
             raise TypeError(f'AudioSink.listener expected str but received {type(name).__name__} instead.')
 
-        def decorator(func):
+        def decorator(func: FuncT) -> FuncT:
             actual = func
 
             if isinstance(actual, staticmethod):
@@ -221,13 +228,13 @@ class AudioSink(SinkABC):
             if inspect.iscoroutinefunction(actual):
                 raise TypeError('Listener function must not be a coroutine function.')
 
-            actual.__sink_listener__ = True
+            actual.__sink_listener__ = True  # type: ignore # Runtime attribute assignment.
             to_assign = name or actual.__name__
 
             try:
-                actual.__sink_listener_names__.append(to_assign)
+                actual.__sink_listener_names__.append(to_assign)  # type: ignore # Runtime attribute modification.
             except AttributeError:
-                actual.__sink_listener_names__ = [to_assign]
+                actual.__sink_listener_names__ = [to_assign]  # type: ignore # Runtime attribute assignment.
 
             return func
 
@@ -331,8 +338,7 @@ class FFmpegSink(AudioSink):
         before_options: Optional[str] = None,
         options: Optional[str] = None,
         on_error: Optional[FFmpegErrorCB] = None,
-    ):
-        ...
+    ) -> None: ...
 
     @overload
     def __init__(
@@ -344,8 +350,7 @@ class FFmpegSink(AudioSink):
         before_options: Optional[str] = None,
         options: Optional[str] = None,
         on_error: Optional[FFmpegErrorCB] = None,
-    ):
-        ...
+    ) -> None: ...
 
     def __init__(
         self,
@@ -357,7 +362,7 @@ class FFmpegSink(AudioSink):
         before_options: Optional[str] = None,
         options: Optional[str] = None,
         on_error: Optional[FFmpegErrorCB] = None,
-    ):
+    ) -> None:
         super().__init__()
 
         self.filename: str = filename or 'pipe:1'
@@ -387,7 +392,7 @@ class FFmpegSink(AudioSink):
             '-ac', '2',
             '-i', 'pipe:0',
             '-loglevel', 'warning',
-            '-blocksize', str(discord.FFmpegAudio.BLOCKSIZE)
+            '-blocksize', str(discord.FFmpegAudio.BLOCKSIZE),
         ))
         # fmt: on
 
@@ -396,7 +401,7 @@ class FFmpegSink(AudioSink):
 
         args.append(self.filename)
 
-        self._process: subprocess.Popen = MISSING
+        self._process: subprocess.Popen[Any] = MISSING
         self._process = self._spawn_process(args, **subprocess_kwargs)
 
         self._stdin: IO[bytes] = self._process.stdin  # type: ignore
@@ -426,11 +431,11 @@ class FFmpegSink(AudioSink):
     def wants_opus(self) -> bool:
         return False
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         self._kill_process()
         self._process = self._stdout = self._stdin = self._stderr = MISSING
 
-    def write(self, user: Optional[User], data: VoiceData):
+    def write(self, user: Optional[User], data: VoiceData) -> None:
         if self._process and not self._stdin.closed:
             audio = data.opus if self.wants_opus() else data.pcm
             assert audio is not None
@@ -441,22 +446,22 @@ class FFmpegSink(AudioSink):
                 self._kill_process()
                 self.on_error(self, e, data)
 
-    def _spawn_process(self, args: Any, **subprocess_kwargs: Any) -> subprocess.Popen:
+    def _spawn_process(self, args: Union[Sequence[str], str], **subprocess_kwargs: Any) -> subprocess.Popen[Any]:
         log.debug('Spawning ffmpeg process with command: %s, kwargs: %s', args, subprocess_kwargs)
         process = None
         try:
             process = subprocess.Popen(args, creationflags=discord.player.CREATE_NO_WINDOW, **subprocess_kwargs)
         except FileNotFoundError:
             executable = args.partition(' ')[0] if isinstance(args, str) else args[0]
-            raise Exception(executable + ' was not found.') from None
+            raise VoiceRecvException(executable + ' was not found.') from None
         except subprocess.SubprocessError as exc:
-            raise Exception(f'Popen failed: {exc.__class__.__name__}: {exc}') from exc
+            raise VoiceRecvException(f'Popen failed: {exc.__class__.__name__}: {exc}') from exc
         else:
             return process
 
     def _kill_process(self) -> None:
         # this function gets called in __del__ so instance attributes might not even exist
-        proc: subprocess.Popen = getattr(self, '_process', MISSING)
+        proc: subprocess.Popen[Any] = getattr(self, '_process', MISSING)
         if proc is MISSING:
             return
 
@@ -500,6 +505,7 @@ class FFmpegSink(AudioSink):
             except Exception:
                 log.debug('Read error for %s, this is probably not a problem', self, exc_info=True)
                 return
+
             if data is None:
                 return
             try:
@@ -537,7 +543,7 @@ class PCMVolumeTransformer(AudioSink):
         return self._volume
 
     @volume.setter
-    def volume(self, value: float):
+    def volume(self, value: float) -> None:
         self._volume = max(value, 0.0)
 
     def write(self, user: Optional[User], data: VoiceData) -> None:
@@ -583,7 +589,7 @@ class TimedFilter(ConditionalFilter):
     """A convenience class for a timed ConditionalFilter."""
 
     def __init__(self, destination: AudioSink, duration: float, *, start_on_init: bool = False):
-        super().__init__(destination, self.predicate)
+        super().__init__(destination, self._predicate)
         self.duration: float = duration
         self.start_time: Optional[float]
 
@@ -593,12 +599,12 @@ class TimedFilter(ConditionalFilter):
             self.start_time = None
             self.write = self._write_once
 
-    def _write_once(self, user: Optional[User], data: VoiceData):
+    def _write_once(self, user: Optional[User], data: VoiceData) -> None:
         self.start_time = self.get_time()
         super().write(user, data)
         self.write = super().write
 
-    def predicate(self, user: Optional[User], data: VoiceData) -> bool:
+    def _predicate(self, user: Optional[User], data: VoiceData) -> bool:
         return self.start_time is not None and self.get_time() - self.start_time < self.duration
 
     def get_time(self) -> float:

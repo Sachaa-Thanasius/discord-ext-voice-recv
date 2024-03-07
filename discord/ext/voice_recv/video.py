@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .types import (
+    VideoResolution as VideoResolutionPayload,
+    VideoStream as VideoStreamPayload,
+    VoiceVideoPayload,
+)
+
 if TYPE_CHECKING:
-    from .types import (
-        VoiceVideoPayload,
-        VideoStream as VideoStreamPayload,
-        VideoResolution as VideoResolutionPayload,
-    )
     from .voice_client import VoiceRecvClient
 
 __all__ = [
@@ -70,7 +69,7 @@ class VideoStreamInfo:
             ('max_framerate', self.max_framerate),
             ('max_resolution', self.max_resolution),
         ]
-        inner = ' '.join('%s=%r' % t for t in attrs)
+        inner = ' '.join(f'{attr}={val!r}' for attr, val in attrs)
         return f'<{self.__class__.__name__} {inner}>'
 
 

@@ -1,26 +1,19 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
-import time
 import logging
 import threading
+import time
+from typing import Any, Callable, Dict, Final, Optional, Tuple
+
+from discord.opus import Decoder
+from discord.utils import MISSING
 
 from .opus import VoiceData
-from .rtp import SilencePacket
+from .rtp import AudioPacket, SilencePacket
+from .types import MemberOrUser as User
 
-from discord.utils import MISSING
-from discord.opus import Decoder
-
-from typing import TYPE_CHECKING, Tuple
-
-if TYPE_CHECKING:
-    from typing import Callable, Any, Dict, Optional, Final, Union
-    from .rtp import AudioPacket
-    from .types import MemberOrUser as User
-
-    SilenceGenFN = Callable[[Optional[User], VoiceData], Any]
-    SSRCData = Tuple[float, Optional[User], AudioPacket]
+SilenceGenFN = Callable[[Optional[User], VoiceData], Any]
+SSRCData = Tuple[float, Optional[User], AudioPacket]
 
 log = logging.getLogger(__name__)
 
@@ -106,7 +99,7 @@ class SilenceGenerator(threading.Thread):
     def run(self) -> None:
         try:
             self._do_run()
-        except Exception as e:
+        except Exception:
             log.exception("Error in %s", self)
 
     def _do_run(self) -> None:

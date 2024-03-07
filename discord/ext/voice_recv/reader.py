@@ -1,17 +1,16 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
-import time
 import logging
 import threading
-
+import time
 from operator import itemgetter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Tuple, Union
+
+from discord import Member
 
 from . import rtp
-from .sinks import AudioSink
 from .router import PacketRouter, SinkEventRouter
+from .sinks import AudioSink
 
 try:
     import nacl.secret
@@ -20,17 +19,14 @@ except ImportError as e:
     raise RuntimeError("pynacl is required") from e
 
 if TYPE_CHECKING:
-    from typing import Optional, Callable, Any, Dict, Literal
-
-    from discord import Member
     from discord.types.voice import SupportedModes
-    from .voice_client import VoiceRecvClient
-    from .rtp import RTPPacket
 
-    DecryptRTP = Callable[[RTPPacket], bytes]
-    DecryptRTCP = Callable[[bytes], bytes]
-    AfterCB = Callable[[Optional[Exception]], Any]
-    SpeakingEvent = Literal['voice_member_speaking_start', 'voice_member_speaking_stop']
+    from .voice_client import VoiceRecvClient
+
+DecryptRTP = Callable[[rtp.RTPPacket], bytes]
+DecryptRTCP = Callable[[bytes], bytes]
+AfterCB = Callable[[Optional[Exception]], Any]
+SpeakingEvent = Literal['voice_member_speaking_start', 'voice_member_speaking_stop']
 
 log = logging.getLogger(__name__)
 
@@ -139,11 +135,11 @@ class AudioReader:
                 if not isinstance(packet, rtp.ReceiverReportPacket):
                     log.info("Received unexpected rtcp packet: type=%s, %s", packet.type, type(packet))
                     log.debug("Packet info:\n  packet=%s\n  data=%s", packet, packet_data)
-        except CryptoError as e:
+        except CryptoError:
             log.error("CryptoError decoding packet data")
             log.debug("CryptoError details:\n  data=%s\n  secret_key=%s", packet_data, self.voice_client.secret_key)
             return
-        except Exception as e:
+        except Exception:
             if self._is_ip_discovery_packet(packet_data):
                 log.debug("Ignoring ip discovery packet")
                 return
@@ -193,7 +189,7 @@ class PacketDecryptor:
     def update_secret_key(self, secret_key: bytes) -> None:
         self.box = nacl.secret.SecretBox(bytes(secret_key))
 
-    def _decrypt_rtp_xsalsa20_poly1305(self, packet: RTPPacket) -> bytes:
+    def _decrypt_rtp_xsalsa20_poly1305(self, packet: rtp.RTPPacket) -> bytes:
         nonce = bytearray(24)
         nonce[:12] = packet.header
         result = self.box.decrypt(bytes(packet.data), bytes(nonce))
@@ -211,7 +207,7 @@ class PacketDecryptor:
 
         return data[:8] + result
 
-    def _decrypt_rtp_xsalsa20_poly1305_suffix(self, packet: RTPPacket) -> bytes:
+    def _decrypt_rtp_xsalsa20_poly1305_suffix(self, packet: rtp.RTPPacket) -> bytes:
         nonce = packet.data[-24:]
         voice_data = packet.data[:-24]
         result = self.box.decrypt(bytes(voice_data), bytes(nonce))
@@ -229,7 +225,7 @@ class PacketDecryptor:
 
         return header + result
 
-    def _decrypt_rtp_xsalsa20_poly1305_lite(self, packet: RTPPacket) -> bytes:
+    def _decrypt_rtp_xsalsa20_poly1305_lite(self, packet: rtp.RTPPacket) -> bytes:
         nonce = bytearray(24)
         nonce[:4] = packet.data[-4:]
         voice_data = packet.data[:-4]
@@ -303,7 +299,7 @@ class SpeakingTimer(threading.Thread):
     def run(self) -> None:
         _i1 = itemgetter(1)
 
-        def get_next_entry():
+        def get_next_entry() -> Union[Tuple[int, float], Tuple[None, None]]:
             cache = sorted(self.speaking_cache.items(), key=_i1)
             for ssrc, tlast in cache:
                 # only return pair if speaking

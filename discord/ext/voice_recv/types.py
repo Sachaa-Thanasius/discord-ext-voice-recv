@@ -1,16 +1,11 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Optional, TypedDict
+from typing import Literal, Optional, TypedDict, Union
 
+import discord
 from discord.types.snowflake import Snowflake
 
-if TYPE_CHECKING:
-    from typing import Union
-    import discord
-
-    MemberOrUser = Union[discord.Member, discord.User]
+MemberOrUser = Union[discord.Member, discord.User]
 
 ResolutionTypes = Literal['fixed']
 
