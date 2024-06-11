@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-
+# ruff: noqa: TID252
 from __future__ import annotations
 
 import logging
@@ -16,25 +15,25 @@ try:
     import speech_recognition as sr  # type: ignore
 except ImportError:
 
-    def SpeechRecognitionSink(**kwargs) -> AudioSink:
+    def SpeechRecognitionSink(**kwargs: object) -> AudioSink:
         """A stub for when the SpeechRecognition module isn't found."""
         raise RuntimeError('The SpeechRecognition module is required to use this sink.')
 
 else:
-    import time
     import array
     import asyncio
     import audioop
-
+    import time
     from collections import defaultdict
+    from typing import TYPE_CHECKING, TypedDict
 
     from ..rtp import SilencePacket
 
-    from typing import TYPE_CHECKING, TypedDict
-
     if TYPE_CHECKING:
         from concurrent.futures import Future as CFuture
-        from typing import Literal, Callable, Optional, Any, Final, Protocol, Awaitable, TypeVar
+        from typing import Any, Awaitable, Callable, Final, Literal, Optional, Protocol, TypeVar
+
+        from typing_extensions import Self
 
         from discord import Member
 
@@ -115,11 +114,11 @@ else:
                     DiscordSRAudioSource(sdata['buffer']), self.background_listener(user), self.phrase_time_limmit
                 )
 
-        def background_listener(self, user: User):
+        def background_listener(self, user: User) -> Callable[[sr.Recognizer, sr.AudioData], None]:
             process_cb = self.process_cb or self.get_default_process_callback()
             text_cb = self.text_cb or self.get_default_text_callback()
 
-            def callback(_recognizer: sr.Recognizer, _audio: sr.AudioData):
+            def callback(_recognizer: sr.Recognizer, _audio: sr.AudioData) -> None:
                 output = process_cb(_recognizer, _audio, user)
                 if output is not None:
                     text_cb(user, output)
@@ -132,8 +131,8 @@ else:
                 text: Optional[str] = None
                 try:
                     # they changed recognize_google to be optionally assigned at runtime...
-                    func = getattr(recognizer, 'recognize_' + self.default_recognizer, recognizer.recognize_google) # type: ignore
-                    text = func(audio)  # type: ignore
+                    func = getattr(recognizer, 'recognize_' + self.default_recognizer, recognizer.recognize_google)  # type: ignore
+                    text = func(audio)
                 except sr.UnknownValueError:
                     log.debug("Bad speech chunk")
                     # self._debug_audio_chunk(audio)
@@ -169,7 +168,10 @@ else:
                 del buffer[:]
 
         def _debug_audio_chunk(self, audio: sr.AudioData, filename: str = 'sound.wav') -> None:
-            import io, wave, discord
+            import io
+            import wave
+
+            import discord
 
             with io.BytesIO() as b:
                 with wave.open(b, 'wb') as writer:
@@ -194,7 +196,7 @@ else:
             self._entered: bool = False
 
         @property
-        def stream(self):
+        def stream(self) -> Self:
             return self
 
         def __enter__(self):
@@ -203,7 +205,7 @@ else:
             self._entered = True
             return self
 
-        def __exit__(self, *exc) -> None:
+        def __exit__(self, *exc: object) -> None:
             self._entered = False
             if any(exc):
                 log.exception('Error closing sr audio source')

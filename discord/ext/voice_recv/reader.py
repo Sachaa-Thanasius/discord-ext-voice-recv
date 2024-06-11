@@ -19,6 +19,7 @@ except ImportError as e:
     raise RuntimeError("pynacl is required") from e
 
 if TYPE_CHECKING:
+    # Needs to be in a TYPE_CHECKING block to avoid importing typing_extensions at runtime.
     from discord.types.voice import SupportedModes
 
     from .voice_client import VoiceRecvClient
@@ -136,7 +137,7 @@ class AudioReader:
                     log.info("Received unexpected rtcp packet: type=%s, %s", packet.type, type(packet))
                     log.debug("Packet info:\n  packet=%s\n  data=%s", packet, packet_data)
         except CryptoError:
-            log.error("CryptoError decoding packet data")
+            log.error("CryptoError decoding packet data")  # noqa: TRY400
             log.debug("CryptoError details:\n  data=%s\n  secret_key=%s", packet_data, self.voice_client.secret_key)
             return
         except Exception:

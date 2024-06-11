@@ -450,7 +450,7 @@ class FFmpegSink(AudioSink):
         log.debug('Spawning ffmpeg process with command: %s, kwargs: %s', args, subprocess_kwargs)
         process = None
         try:
-            process = subprocess.Popen(args, creationflags=discord.player.CREATE_NO_WINDOW, **subprocess_kwargs)
+            process = subprocess.Popen(args, creationflags=discord.player.CREATE_NO_WINDOW, **subprocess_kwargs)  # noqa: S603
         except FileNotFoundError:
             executable = args.partition(' ')[0] if isinstance(args, str) else args[0]
             raise VoiceRecvException(executable + ' was not found.') from None

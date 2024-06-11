@@ -1,5 +1,3 @@
-# pyright: reportUntypedNamedTuple=information
-# ruff: noqa: PYI024
 from __future__ import annotations
 
 import logging
@@ -74,10 +72,6 @@ def _parse_low(x: int, bitlen: int = 32) -> float:
     return x / 2.0**bitlen
 
 
-def _into_low(x: float, bitlen: int = 32) -> int:
-    return int(x * 2.0**bitlen)
-
-
 class _PacketCmpMixin:
     __slots__ = ('ssrc', 'timestamp')
     if TYPE_CHECKING:
@@ -109,7 +103,7 @@ class _PacketCmpMixin:
 class FakePacket(_PacketCmpMixin):
     __slots__ = ('sequence',)
     decrypted_data: bytes = b''
-    extension_data: Dict[int, Any] = {}
+    extension_data: Dict[int, Any] = {}  # noqa: RUF012
 
     def __init__(self, ssrc: int, sequence: int, timestamp: int):
         self.ssrc: int = ssrc
@@ -139,7 +133,7 @@ class SilencePacket(_PacketCmpMixin):
         return True
 
 
-_Extension = namedtuple("Extension", 'profile length values')
+_Extension = namedtuple("_Extension", 'profile length values')
 
 
 class RTPPacket(_PacketCmpMixin):
@@ -180,7 +174,7 @@ class RTPPacket(_PacketCmpMixin):
         self.ssrc: int = ssrc
 
         self.csrcs: Tuple[int, ...] = ()
-        self.extension = None
+        self.extension: Optional[_Extension] = None
         self.extension_data: Dict[int, bytes] = {}
 
         self.header = data_array[:12]
@@ -346,8 +340,8 @@ class ReceiverReportPacket(RTCPPacket):
 # UNFORTUNATELY it seems discord only uses the above ~~two packet types~~ packet type.
 # Good thing I knew that when I made the rest of these. Haha yes.
 
-_SDESChunk = namedtuple("_SDESChunk", 'ssrc items')
 _SDESItem = namedtuple("SDESItem", 'type size length text')
+_SDESChunk = namedtuple("_SDESChunk", 'ssrc items')
 
 
 # http://www.rfcreader.com/#rfc3550_line2024
@@ -373,12 +367,12 @@ class SDESPacket(RTCPPacket):
         # check for chunk with no items
         if data[self._pos : self._pos + 4] == b'\x00\x00\x00\x00':
             self._pos += 4
-            return _SDESChunk(ssrc, ())
+            return _SDESChunk(ssrc, [])
 
         items = [self._read_item(data)]
 
         # Read items until END type is found
-        while items[-1].type != 0:
+        while items[-1].type != 0:  # type: ignore
             items.append(self._read_item(data))
 
         # pad chunk to 4 bytes
@@ -398,8 +392,8 @@ class SDESPacket(RTCPPacket):
 
         return _SDESItem(itype, ilen + 2, ilen, text)
 
-    def _get_chunk_size(self, chunk) -> int:
-        return 4 + max(4, sum(i.size for i in chunk.items))  # + padding?
+    def _get_chunk_size(self, chunk: _SDESChunk) -> int:
+        return 4 + max(4, sum(i.size for i in chunk.items))  # + padding? # type: ignore
 
 
 # http://www.rfcreader.com/#rfc3550_line2311

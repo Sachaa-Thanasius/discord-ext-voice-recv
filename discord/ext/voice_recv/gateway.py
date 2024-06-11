@@ -42,7 +42,7 @@ async def hook(self: DiscordVoiceWebSocket, msg: Dict[str, Any]) -> None:
     data: Dict[str, Any] = msg.get('d', {})
     vc: VoiceRecvClient = self._connection.voice_client  # type: ignore
 
-    if op not in (3, 6):
+    if op not in {3, 6}:
         from pprint import pformat
 
         log.debug("Received op %s: \n%s", op, pformat(data, compact=True))

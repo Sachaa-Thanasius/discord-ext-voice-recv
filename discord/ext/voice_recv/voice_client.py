@@ -14,6 +14,7 @@ from .sinks import AudioSink
 
 if TYPE_CHECKING:
     from discord.ext.commands._types import CoroFunc
+    from discord.types.voice import GuildVoiceState as GuildVoiceStatePayload
 
     from .reader import AfterCB
 
@@ -38,7 +39,7 @@ class VoiceRecvClient(discord.VoiceClient):
     def create_connection_state(self) -> VoiceConnectionState:
         return VoiceConnectionState(self, hook=hook)
 
-    async def on_voice_state_update(self, data) -> None:
+    async def on_voice_state_update(self, data: GuildVoiceStatePayload) -> None:
         old_channel_id = self.channel.id if self.channel else None
 
         await super().on_voice_state_update(data)
